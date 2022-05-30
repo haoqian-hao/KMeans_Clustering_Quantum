@@ -17,7 +17,7 @@ def get_congestion():
     
     df["timestamp"] = [0]*len(df["CI"])
     
-    df = df.loc[0:199]
+    df = df.loc[0:500]
     
     return df
 
