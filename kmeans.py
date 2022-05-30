@@ -1,3 +1,5 @@
+
+   
 import dimod
 import numpy as np
 
@@ -68,18 +70,29 @@ def solve(
 
     # Call D-Wave solver
     sampler = LeapHybridSampler()
+    # sampler = FixVariablesComposite(LeapHybridSampler(), algorithm='roof_duality')
+
 
     answer = sampler.sample_qubo(Q)
+    
+    print(answer.info)
+    print(type(sampler))
 
     best_answer = list(answer.data(["sample", "energy"]))[0].sample
 
+    print(best_answer)
     # Utility function to map from QUBO temp matrix label to integer
     def matrix_entry_to_pair(val):
         _, i, j = val.replace("[", " ").replace("]", " ").split()
         return (int(i), int(j))
 
-    cluster_result = [matrix_entry_to_pair(k) for k, v in best_answer.items() if v == 1]
+    # cluster_result = [matrix_entry_to_pair(k) for k, v in best_answer.items() if v == 1]
+    cluster_result = []
+    for k,v in best_answer.items():
+        if v == 1:
+            cluster_result.append(matrix_entry_to_pair(k))
 
+    print(cluster_result)
     label_result = [p[1] for p in sorted(cluster_result)]
 
     return label_result
