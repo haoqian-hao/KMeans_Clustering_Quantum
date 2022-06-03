@@ -1,13 +1,18 @@
-
-   
 import dimod
 import numpy as np
 
 from dwave.system import LeapHybridSampler
 from pyqubo import Array, Binary, Placeholder
+from dwave.system import EmbeddingComposite, DWaveSampler
 
 
-# +
+# Utility function to map from QUBO temp matrix label to integer
+def matrix_entry_to_pair(val):
+    _, i, j = val.replace("[", " ").replace("]", " ").split()
+    return (int(i), int(j))
+
+
+
 def solve(
     N,  # Number of data points
     K,  # Number of clusters
@@ -31,7 +36,6 @@ def solve(
             dist_matrix
         )  # weight bigger than sum of all distances, not worth taking more than one
 
-    # binray martrix matrix
     group_matrix = Array.create("x", shape=(N, K), vartype="BINARY")
 
     distinct_size_penalty = Placeholder("gamma_distinct")
@@ -44,10 +48,7 @@ def solve(
     for i in range(N):
         single_asignment_constraint = (1 - sum(group_matrix[i, :])) ** 2
         all_terms.append(multiple_assignment_penalty * single_asignment_constraint)
-    
-    print("multiple clusters")
-    print(all_terms[0])
-    
+
     # Penalty for exceding equal number of members per cluster
     for j in range(K):
         cluster_member_constraint = (
@@ -55,25 +56,15 @@ def solve(
         ) ** 2
         all_terms.append(distinct_size_penalty * cluster_member_constraint)
 
-    print("equal clusters")
-    print(all_terms)
-
-
     # Adding objective for distances. Must minimize distances in the same group
     for i in range(N):
         for j in range(i + 1, N):
             same_group_combinations = group_matrix[i, :] * group_matrix[j, :]
             all_terms.append(dist_matrix[i, j] * sum(same_group_combinations))
 
-    print("final")
-    print(all_terms)
-    print(len(all_terms))
     # Generate QUBO from equation that represents the DQM
     equation = sum(all_terms)
-    print("here")
     model = equation.compile()
-    print("here")
-    print(model)
     Q, offset = model.to_qubo(
         feed_dict={
             "gamma_distinct": gamma_distinct,
@@ -81,32 +72,18 @@ def solve(
             "target_goal": target_goal,
         }
     )
+    # print(Q)
+    # Call D-Wave solver
+    sampler = LeapHybridSampler()
+    answer = sampler.sample_qubo(Q)
+    answer = sampler.sample_qubo(Q)
 
-    # # Call D-Wave solver
-    # sampler = LeapHybridSampler()
-    # # sampler = FixVariablesComposite(LeapHybridSampler(), algorithm='roof_duality')
-
-
-    # answer = sampler.sample_qubo(Q)
+    best_answer = list(answer.data(["sample", "energy"]))[0].sample
     
-    # print(answer.info)
-    # print(type(sampler))
+    cluster_result = [matrix_entry_to_pair(k) for k, v in best_answer.items() if v == 1]
 
-    # best_answer = list(answer.data(["sample", "energy"]))[0].sample
-
-    # print(best_answer)
-    # # Utility function to map from QUBO temp matrix label to integer
-    # def matrix_entry_to_pair(val):
-    #     _, i, j = val.replace("[", " ").replace("]", " ").split()
-    #     return (int(i), int(j))
-
-    # # cluster_result = [matrix_entry_to_pair(k) for k, v in best_answer.items() if v == 1]
-    # cluster_result = []
-    # for k,v in best_answer.items():
-    #     if v == 1:
-    #         cluster_result.append(matrix_entry_to_pair(k))
-
-    # print(cluster_result)
-    # label_result = [p[1] for p in sorted(cluster_result)]
-
-    # return label_result
+    cluster_result = sorted(cluster_result, key=lambda tup:tup[0])
+    
+    label_result = [p[1] for p in cluster_result]
+    
+    return label_result
